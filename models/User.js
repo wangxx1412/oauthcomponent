@@ -3,42 +3,77 @@ const { Schema } = mongoose;
 const bcrypt = require('bcrypt-nodejs');
 
 const userSchema = new Schema({
-  googleId: String,
-  facebookId: String,
-  twitterId: String,
-  linkedinId: String,
-  githubId: String,
-  email: {
-    type:String,
-    unique:true,
-    lowercase:true,
-    required:true
+  method: {
+    type: String,
+    enum: ['local', 'google', 'facebook', 'github', 'linkedin'],
+    required: true
   },
-  password:String,
-  displayName: String,
-  name:{
-    familyName:String,
-    givenName: String
+  local:{
+    email: {
+      type:String,
+      lowercase:true
+    },
+    password:String,
+  },
+  google:{
+    id: String,
+    email: {
+      type: String,
+      lowercase: true
+    },
+    displayName: String,
+    name:{
+      familyName:String,
+      givenName: String
+    }
+  },
+  facebook:{
+    id: String,
+    displayName: String,
+    email: {
+      type: String,
+      lowercase: true
+    }
+  },
+  linkedin:{
+    id: String,
+    displayName: String,
+    email: {
+      type: String,
+      lowercase: true
+    }
+  },
+  github:{
+    id: String,
+    displayName: String,
+    email: {
+      type: String,
+      lowercase: true
+    }
   }
-}, {timestamps: true});
+}, 
+{timestamps: true});
 
 
-userSchema.pre('save',function(next){
+userSchema.pre('save', async function(next){
+  if(this.method !== 'local'){
+    next();
+  }
   const user = this;
-  bcrypt.genSalt(10, function(err, salt){
+  await bcrypt.genSalt(10, function(err, salt){
       if (err){
           return next(err);
       }
-      bcrypt.hash(user.password, salt, null, function(err,hash){
+      bcrypt.hash(user.local.password, salt, null, function(err,hash){
           if(err){return next(err)};
-          user.password = hash;
+          user.local.password = hash;
           next();
       });
   });
 });
 
 userSchema.methods.comparePassword = function(candidatePassword, callback){
-  bcrypt.compare(candidatePassword, this.password, function(err, isMatch){
+  bcrypt.compare(candidatePassword, this.local.password, function(err, isMatch){
       if(err){
           return callback(err);
       }

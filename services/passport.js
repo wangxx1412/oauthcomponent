@@ -15,17 +15,19 @@ const User = mongoose.model('User');
 const localLogin = new LocalStrategy(
   {usernameField:'email'}, 
   function(email, password, done){
-  User.findOne({email:email},function(err,user){
+  User.findOne({"local.email": email}, function(err, user){
       if(err){return done(err);}
       if(!user){return done(null,false);}
 
-      user.comparePassword(password, function(err,isMatch){
+      user.comparePassword(password, function(err, isMatch){
           if(err){return done(err);}
           if(!isMatch){return done(null, false);}
           return done(null, user);
       });
   });
 });
+
+passport.use(localLogin);
 
 const jwtOptions = {
   jwtFromRequest : ExtractJwt.fromHeader('authorization'),
@@ -44,7 +46,6 @@ const jwtLogin = new JwtStrategy(jwtOptions, function(payload, done){
 });
 
 passport.use(jwtLogin);
-passport.use(localLogin);
 
 passport.serializeUser((user, done) => {
   done(null, user.id);
@@ -66,19 +67,21 @@ passport.use(
       proxy: true
     },
     async (accessToken, refreshToken, profile, done) => {
-        const existingUser = await User.findOne({ googleId: profile.id });
+        const existingUser = await User.findOne({ "google.id": profile.id });
         if (existingUser) {
           return done(null, existingUser);
         }
         const user = await new User({
-          googleId: profile.id,
-          email: profile.emails[0].value,
-          displayName: profile.displayName,
-          name:{
-            familyName: profile.name.familyName,
-            givenName: profile.name.givenName
-          }
-        }).save();
+          method:'google',
+          google: {
+            id:profile.id,
+            email: profile.emails[0].value,
+            displayName: profile.displayName,
+            name:{
+              familyName: profile.name.familyName,
+              givenName: profile.name.givenName
+            }
+        }}).save();
         done(null, user);    
     }
   )
@@ -93,17 +96,22 @@ passport.use(
       profileFields: ['id', 'emails', 'name']
     },
     async (accessToken, refreshToken, profile, done) => {
-      const existingUser = await User.findOne({ facebookId: profile.id });
+      console.log(profile);
+      const existingUser = await User.findOne({ "facebook.id": profile.id });
       if (existingUser) {
         return done(null, existingUser);
       }
       const user = await new User({
-        facebookId: profile.id,
-        email: profile.emails[0].value,
-        displayName: profile.displayName,
-        familyName: profile.name.familyName,
-        givenName: profile.name.givenName
-      }).save();
+        method:'facebook',
+        facebook: {
+          id:profile.id,
+          email: profile.emails[0].value,
+          displayName: profile.displayName,
+          name:{
+            familyName: profile.name.familyName,
+            givenName: profile.name.givenName
+          }
+      }}).save();
       done(null, user);   
     }
   )
@@ -123,40 +131,41 @@ async (accessToken, refreshToken, profile, done) => {
         return done(null, existingUser);
       }
       const user = await new User({
-        githubId: profile.id,
-        email: profile.emails[0].value,
-        displayName: profile.displayName,
-          name:{
-            familyName: profile.name.familyName,
-            givenName: profile.name.givenName
-          }
-      }).save();
+        method:'github',
+        github: {
+          id:profile.id,
+          displayName: profile.displayName
+      }}).save();
       done(null, user);  
     }
   )
 );
 
-passport.use(new LinkedinStrategy({
-  clientID: keys.linkedinClientID,
-  clientSecret: keys.linkedinClientSecret,
-  callbackURL: "/auth/linkedin/callback",
-  scope: ['r_emailaddress', 'r_basicprofile'],
-}, async (accessToken, refreshToken, profile, done) => {
-  
-  const existingUser = await User.findOne({ linkedinId: profile.id });
-  if (existingUser) {
-    return done(null, existingUser);
-  }
-  const user = await new User({
-    linkedinId: profile.id,
-    email: profile.emails[0].value,
-    displayName: profile.displayName,
-    name:{
-      familyName: profile.name.familyName,
-      givenName: profile.name.givenName
+passport.use(
+  new LinkedinStrategy(
+    {
+      clientID: keys.linkedinClientID,
+      clientSecret: keys.linkedinClientSecret,
+      callbackURL: "/auth/linkedin/callback",
+      scope: ['r_emailaddress', 'r_basicprofile'],
+    }, 
+  async (accessToken, refreshToken, profile, done) => {
+    const existingUser = await User.findOne({ linkedinId: profile.id });
+    if (existingUser) {
+      return done(null, existingUser);
     }
-  }).save();
-  done(null, user);  
+    const user = await new User({
+      method:'linkedin',
+      linkedin: {
+        id: profile.id,
+        email: profile.emails[0].value,
+        displayName: profile.displayName,
+        name:{
+          familyName: profile.name.familyName,
+          givenName: profile.name.givenName
+        }
+    }}).save();
+    done(null, user);  
 }));
 
 
